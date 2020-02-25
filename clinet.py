@@ -36,13 +36,16 @@ class Main_Application(tk.Frame):
             self.master, bg="white", borderwidth=1, relief="raised")
         # For the messages to be sent.
         self.my_msg = tk.StringVar()
+        # Following will contain the messages.
+        self.msg_list = tk.Listbox(self.messages_frame, height=15, width=100)
         # To navigate through past messages.
         self.scrollbar = tk.Scrollbar(self.messages_frame)
-        # Following will contain the messages.
-        self.msg_list = tk.Listbox(self.messages_frame, height=15,
-                                   width=100, yscrollcommand=self.scrollbar.set)
+        self.scrollbar.configure(command=self.msg_list.yview)
+        self.msg_list.configure(yscrollcommand=self.scrollbar.set)
+
         self.entry_field = tk.Entry(
             self.messages_frame, textvariable=self.my_msg, width=40)
+        # bind Enter key with textbox
         self.entry_field.bind("<Return>", self.send)
         self.send_button = tk.Button(
             self.messages_frame, text="Send", command=self.send)
