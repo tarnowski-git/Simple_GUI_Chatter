@@ -1,96 +1,77 @@
+# Server for multithreaded (asynchronous) chat application.
 import socket
 import select
-import time
-
-HEADER_LENGHT = 10
-
-# creating the socket object - ipv4, tcp ip
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# allow to reconnet
-server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-# store the host IP address
-host = socket.gethostname()
-port = 999
-
-# binding host & port with socket
-server_socket.bind((host, port))
-
-# statring TCP listener of three contections
-server_socket.listen(5)
-
-socket_list = [server_socket]
-
-# while True:
-#     # starting the  from clinet
-#     client_socket, address = server_socket.accept()
-#     print(f"receved connection from {address} has been established!")
-
-#     message = "Welcome to the Server!"
-#     # fixed lenth to the left for 10 characters
-#     message = f"{len(message):<{HEADER_SIZE}}" + message
-#     print(message)
-
-#     # sending information to the client socket
-#     client_socket.send(bytes(message, "utf-8"))
-
-#     while True:
-#         time.sleep(3)
-#         message = f"The time is! {time.time()}"
-#         message = f"{len(message):<{HEADER_SIZE}}" + message
-#         print(message)
-#         client_socket.send(bytes(message, "utf-8"))
+from threading import Thread
 
 
-clients = {}
+class Server:
+
+    HOST = socket.gethostname()
+    PORT = 33000
+    BUFSIZ = 1024
+
+    def __init__(self):
+        # define dictionaries
+        self.clients = {}
+        self.addresses = {}
+        # init server
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        print("Server IP: {}".format(self.HOST))
+        self.server.bind((self.HOST, self.PORT))
+        self.server.listen(5)
+
+    def run(self):
+        print("Waiting for connection...")
+        accept_thread = Thread(target=self.accept_incoming_connections)
+        accept_thread.start()
+        # the main script waits for it to complete and doesn’t
+        # jump to the next line, which closes the server.
+        accept_thread.join()
+        self.server.close()
+
+    def accept_incoming_connections(self):
+        """Sets up handling for incoming clients."""
+        while True:
+            client, client_address = self.server.accept()
+            print("{} has connected.".format(client_address))
+            client.send(
+                bytes("Greetings from the cave! Now type your name and press enter!", "utf8"))
+            # add address to the dictionary
+            self.addresses[client] = client_address
+            Thread(target=self.handle_client, args=(client,)).start()
+
+    def handle_client(self, client):
+        """Handles a single client connection. Takes client socket as argument."""
+        name = client.recv(self.BUFSIZ).decode("utf8")
+        welcome = "Welcome {}! If you ever want to quit, type EXIT to exit.".format(
+            name)
+        client.send(bytes(welcome, "utf8"))
+        msg = "{} has joined the chat!".format(name)
+        self.broadcast(bytes(msg, "utf8"))
+        self.clients[client] = name
+
+        while True:
+            msg = client.recv(self.BUFSIZ)
+            if msg != bytes("EXIT", "utf8"):
+                self.broadcast(msg, name+": ")
+            else:
+                client.send(bytes("EXIT", "utf8"))
+                client.close()
+                del self.clients[client]
+                self.broadcast(
+                    bytes("{} has left the chat.".format(name), "utf8"))
+                break
+
+    def broadcast(self, msg, prefix=""):
+        """Broadcasts a message to all the clients.
+        prefix is for name identification."""
+
+        for sock in self.clients:
+            sock.send(bytes(prefix, "utf8") + msg)
 
 
-def receive_message(client_socket):
-    try:
-        message_header = client_socket.recv(HEADER_LENGHT)
-        if not len(message_header):
-            return False
-        message_lenght = int(message_header.decode("utf-8").strip())
-        # return a dictionary type
-        return {"header": message_header, "data": client_socket.recv(message_lenght)}
-
-    except:
-        return False
-
-
-while True:
-    read_sockets, _, exception_sockets = select.select(
-        socket_list, [], socket_list)
-
-    for notified_sockets in read_sockets:
-        if notified_sockets == server_socket:
-            client_socket, client_address = server_socket.accept()
-            # get the dictionary
-            user = receive_message(client_socket)
-            if user is False:
-                continue
-
-            socket_list.append(client_socket)
-            clients[client_socket] = user
-            print(
-                f"Accepyer new connection from {client_address[0]}:{client_address[1]} username:{user['data'].decode('utf-8')}")
-        else:
-            message = receive_message(notified_sockets)
-
-            if message is False:
-                print(
-                    f"Close connection from {clients[notified_sockets]['data'].decode('utf-8')}")
-                socket_list.remove(notified_sockets)
-                del clients[notified_sockets]
-                continue
-            user = clients[notified_sockets]
-            print(f"Received message")
-
-            for client_socket in clients:
-                if client_socket != notified_sockets:
-                    client_socket.send(
-                        user['header'] + user['data'] + message['header'] + message['data'])
-
-    for notified_socket in exception_sockets:
-        socket_list.remove(notified_socket)
-        del clients[notified_socket]
+# this means that if this script is executed, then
+# main() will be executed
+if __name__ == "__main__":
+    server = Server()
+    server.run()
