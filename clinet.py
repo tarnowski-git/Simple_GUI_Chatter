@@ -42,7 +42,7 @@ class Main_Application(tk.Frame):
         self.scrollbar = tk.Scrollbar(self.messages_frame)
         self.scrollbar.configure(command=self.msg_list.yview)
         self.msg_list.configure(yscrollcommand=self.scrollbar.set)
-
+        # create textbox
         self.entry_field = tk.Entry(
             self.messages_frame, textvariable=self.my_msg, width=40)
         # bind Enter key with textbox
